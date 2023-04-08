@@ -195,29 +195,35 @@ static void calculateWeightAndFlow(void) {
       float consideredFlow = currentState.smoothedPumpFlow * (float)elapsedTime / 1000.f;
       currentState.isPumpFlowRisingFast = currentState.smoothedPumpFlow > previousSmoothedPumpFlow + 0.1f;
       currentState.isPumpFlowFallingFast = currentState.smoothedPumpFlow < previousSmoothedPumpFlow - 0.1f;
-
-      // bool previousIsOutputFlow = predictiveWeight.isOutputFlow();
-
-      CurrentPhase& phase = phaseProfiler.getCurrentPhase();
-      predictiveWeight.update(currentState, phase, runningCfg);
+      currentState.waterPumped += consideredFlow;
 
       if (scalesIsPresent()) {
         currentState.weightFlow = fmaxf(0.f, (currentState.shotWeight - previousWeight) * 1000.f / (float)elapsedTime);
-        currentState.smoothedWeightFlow = smoothScalesFlow.updateEstimate(currentState.weightFlow);
-        previousWeight = currentState.shotWeight;
-      } else if (predictiveWeight.isOutputFlow()) {
-        float flowPerClick = getPumpFlowPerClick(currentState.smoothedPressure);
-        float actualFlow = (consideredFlow > pumpClicks * flowPerClick) ? consideredFlow : pumpClicks * flowPerClick;
-        // Probabilistically the flow is lower if the shot is just started winding up and we're flow profiling
-        if (runningCfg.flowProfileState && currentState.isPressureRising
-        && currentState.smoothedPressure < runningCfg.flowProfilePressureTarget * 0.9f) {
-          actualFlow *= 0.6f;
+        // Use the consideredFlow as an inital estimate to bootstrap the smoothedWeightFlow
+        // kalman filter if we haven't got any actual output yet.
+        if (currentState.weight > 0.4f) {
+          currentState.smoothedWeightFlow = smoothScalesFlow.updateEstimate(currentState.weightFlow);
+        } else {
+          smoothScalesFlow.updateEstimate(currentState.smoothedPumpFlow);
         }
-        currentState.consideredFlow = smoothConsideredFlow.updateEstimate(actualFlow);
-        //If the pressure is maxing out, consider only the flow is slightly higher than the sensor reports (probabilistically).
-        currentState.shotWeight += actualFlow;
+        previousWeight = currentState.shotWeight;
+      } else {
+        CurrentPhase& phase = phaseProfiler.getCurrentPhase();
+        predictiveWeight.update(currentState, phase, runningCfg);
+        if (predictiveWeight.isOutputFlow()) {
+          float flowPerClick = getPumpFlowPerClick(currentState.smoothedPressure);
+          float actualFlow = (consideredFlow > pumpClicks * flowPerClick) ? consideredFlow : pumpClicks * flowPerClick;
+          // Probabilistically the flow is lower if the shot is just started winding up and we're flow profiling
+          if (runningCfg.flowProfileState
+              && currentState.isPressureRising
+              && currentState.smoothedPressure < runningCfg.flowProfilePressureTarget * 0.9f
+          ) {
+            actualFlow *= 0.6f;
+          }
+          currentState.consideredFlow = smoothConsideredFlow.updateEstimate(actualFlow);
+          currentState.shotWeight += actualFlow;
+        }
       }
-      currentState.waterPumped += consideredFlow;
     }
   } else {
     currentState.consideredFlow = 0.f;
