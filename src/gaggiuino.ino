@@ -198,13 +198,10 @@ static void calculateWeightAndFlow(void) {
       currentState.waterPumped += consideredFlow;
 
       if (scalesIsPresent()) {
-        currentState.weightFlow = fmaxf(0.f, (currentState.shotWeight - previousWeight) * 1000.f / (float)elapsedTime);
-        // Use the consideredFlow as an inital estimate to bootstrap the smoothedWeightFlow
-        // kalman filter if we haven't got any actual output yet.
-        if (currentState.weight > 0.4f) {
+        // Only update if we have output to avoid updating with lots of zeros.
+        if (currentState.weight > SCALES_OUTPUT_THRESHOLD) {
+          currentState.weightFlow = fmaxf(0.f, (currentState.shotWeight - previousWeight) * 1000.f / (float)elapsedTime);
           currentState.smoothedWeightFlow = smoothScalesFlow.updateEstimate(currentState.weightFlow);
-        } else {
-          smoothScalesFlow.updateEstimate(currentState.smoothedPumpFlow);
         }
         previousWeight = currentState.shotWeight;
       } else {
@@ -348,7 +345,7 @@ static void lcdRefresh(void) {
     if ( static_cast<SCREEN_MODES>(lcdCurrentPageId) == SCREEN_MODES::SCREEN_brew_graph
       || static_cast<SCREEN_MODES>(lcdCurrentPageId) == SCREEN_MODES::SCREEN_brew_manual ) {
       lcdSetFlow(
-        currentState.weight > 0.4f // currentState.weight is always zero if scales are not present
+        currentState.weight > SCALES_OUTPUT_THRESHOLD // currentState.weight is always zero if scales are not present
           ? currentState.smoothedWeightFlow * 10.f
           : currentState.consideredFlow ? currentState.consideredFlow * 100.f : currentState.smoothedPumpFlow * 10.f
       );

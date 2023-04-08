@@ -40,6 +40,7 @@
 #define BOILER_FILL_START_TIME  3000UL // Boiler fill start time
 #define BOILER_FILL_TIMEOUT     8000UL // Boiler fill timeout
 #define BOILER_FILL_SKIP_TEMP   85.f // Boiler fill skip threshold
+#define SCALES_OUTPUT_THRESHOLD 0.4f // the output threshold to start using HW scales
 
 enum class OPERATION_MODES {
   OPMODE_straight9Bar,
